@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import math
 import requests
+import json
+import re
 from typing import List, Dict, Union
 from pydantic import BaseModel
 
@@ -68,57 +70,83 @@ def get_properties(n: int) -> List[str]:
     
     return properties
 
+def clean_fun_fact(text: str) -> str:
+    """Clean and sanitize fun fact text to ensure valid JSON."""
+    # Remove any non-ASCII characters
+    text = text.encode('ascii', 'ignore').decode()
+    
+    # Remove new lines and extra whitespace
+    text = ' '.join(text.split())
+    
+    # Remove any other characters that might break JSON
+    text = re.sub(r'[^\x20-\x7E]', '', text)
+    
+    return text
+
 def get_fun_fact(n: int) -> str:
     """Get a fun fact about the number from the Numbers API."""
     try:
         response = requests.get(f"http://numbersapi.com/{n}/math")
         if response.status_code == 200:
-            # Remove any special characters or formatting that might break JSON
-            fact = response.text.strip().replace('\n', ' ').replace('\r', '')
+            # Clean and validate the fun fact
+            fact = clean_fun_fact(response.text)
+            # Verify it can be encoded as JSON
+            json.dumps({"test": fact})
             return fact
         else:
-            # Fallback fun fact if API fails
-            if is_armstrong(n):
-                digits = list(str(n))
-                power = len(digits)
-                calculation = " + ".join([f"{d}^{power}" for d in digits])
-                return f"{n} is an Armstrong number because {calculation} = {n}"
-            return f"{n} is {'even' if n % 2 == 0 else 'odd'}"
-    except:
-        # Fallback for connection errors
-        return f"Number {n}"
+            raise requests.RequestException
+    except (requests.RequestException, json.JSONDecodeError):
+        # Fallback fun fact if API fails or returns invalid JSON
+        if is_armstrong(n):
+            digits = list(str(n))
+            power = len(digits)
+            calculation = " + ".join([f"{d}^{power}" for d in digits])
+            return clean_fun_fact(f"{n} is an Armstrong number because {calculation} = {n}")
+        return f"{n} is {'even' if n % 2 == 0 else 'odd'}"
 
 @app.get("/api/classify-number")
 async def classify_number(number: str = None):
     """
     Classify a number and return its properties.
     """
-    # Handle missing number parameter
     if number is None:
         return JSONResponse(
             status_code=400,
             content={"number": "", "error": True}
         )
     
-    # Handle invalid number input
     try:
         num = int(number)
+        response = NumberResponse(
+            number=num,
+            is_prime=is_prime(num),
+            is_perfect=is_perfect(num),
+            properties=get_properties(num),
+            digit_sum=get_digit_sum(num),
+            fun_fact=get_fun_fact(num)
+        )
+        
+        # Validate the entire response can be serialized to JSON
+        response_dict = response.dict()
+        json.dumps(response_dict)
+        
+        return JSONResponse(content=response_dict)
     except ValueError:
         return JSONResponse(
             status_code=400,
             content={"number": number, "error": True}
         )
-    
-    response = NumberResponse(
-        number=num,
-        is_prime=is_prime(num),
-        is_perfect=is_perfect(num),
-        properties=get_properties(num),
-        digit_sum=get_digit_sum(num),
-        fun_fact=get_fun_fact(num)
-    )
-    
-    return response
+    except json.JSONDecodeError:
+        # If JSON serialization fails, return with a safe fallback fun fact
+        response = NumberResponse(
+            number=num,
+            is_prime=is_prime(num),
+            is_perfect=is_perfect(num),
+            properties=get_properties(num),
+            digit_sum=get_digit_sum(num),
+            fun_fact=f"{num} is {'even' if num % 2 == 0 else 'odd'}"
+        )
+        return JSONResponse(content=response.dict())
 
 if __name__ == "__main__":
     import uvicorn
