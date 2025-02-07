@@ -4,6 +4,7 @@ import math
 import requests
 from typing import List, Dict, Union
 from pydantic import BaseModel
+import json
 
 app = FastAPI(title="Number Classification API")
 
@@ -72,28 +73,41 @@ def get_fun_fact(n: int) -> str:
     try:
         response = requests.get(f"http://numbersapi.com/{n}/math")
         if response.status_code == 200:
-            return response.text
+            # Clean the response text to ensure it's valid JSON
+            fact = response.text.strip()
+            # Test if it can be encoded as JSON
+            json.dumps(fact)
+            return fact
         else:
-            # Fallback fun fact if API fails
-            if is_armstrong(n):
-                digits = list(str(n))
-                power = len(digits)
-                calculation = " + ".join([f"{d}^{power}" for d in digits])
-                return f"{n} is an Armstrong number because {calculation} = {n}"
-            return f"{n} is {'even' if n % 2 == 0 else 'odd'}"
-    except:
-        # Fallback for connection errors
-        return f"Number {n}"
+            raise requests.RequestException
+    except (requests.RequestException, json.JSONDecodeError):
+        # Fallback fun fact if API fails or returns invalid JSON
+        if is_armstrong(n):
+            digits = list(str(n))
+            power = len(digits)
+            calculation = " + ".join([f"{d}^{power}" for d in digits])
+            return f"{n} is an Armstrong number because {calculation} = {n}"
+        return f"{n} is {'even' if n % 2 == 0 else 'odd'}"
 
-@app.get("/api/classify-number", response_model=Union[NumberResponse, ErrorResponse])
+@app.get("/api/classify-number")
 async def classify_number(number: str):
     """
     Classify a number and return its properties.
     """
+    # Check if number parameter is missing
+    if not number:
+        raise HTTPException(
+            status_code=400,
+            detail={"number": "", "error": True}
+        )
+    
     try:
         num = int(number)
     except ValueError:
-        return ErrorResponse(number=number)
+        raise HTTPException(
+            status_code=400,
+            detail={"number": number, "error": True}
+        )
     
     response = NumberResponse(
         number=num,
@@ -108,4 +122,4 @@ async def classify_number(number: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
