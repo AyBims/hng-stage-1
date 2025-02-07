@@ -1,20 +1,20 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import math
 import requests
 from typing import List, Dict, Union
 from pydantic import BaseModel
-import json
 
 app = FastAPI(title="Number Classification API")
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class ErrorResponse(BaseModel):
@@ -73,40 +73,40 @@ def get_fun_fact(n: int) -> str:
     try:
         response = requests.get(f"http://numbersapi.com/{n}/math")
         if response.status_code == 200:
-            # Clean the response text to ensure it's valid JSON
-            fact = response.text.strip()
-            # Test if it can be encoded as JSON
-            json.dumps(fact)
+            # Remove any special characters or formatting that might break JSON
+            fact = response.text.strip().replace('\n', ' ').replace('\r', '')
             return fact
         else:
-            raise requests.RequestException
-    except (requests.RequestException, json.JSONDecodeError):
-        # Fallback fun fact if API fails or returns invalid JSON
-        if is_armstrong(n):
-            digits = list(str(n))
-            power = len(digits)
-            calculation = " + ".join([f"{d}^{power}" for d in digits])
-            return f"{n} is an Armstrong number because {calculation} = {n}"
-        return f"{n} is {'even' if n % 2 == 0 else 'odd'}"
+            # Fallback fun fact if API fails
+            if is_armstrong(n):
+                digits = list(str(n))
+                power = len(digits)
+                calculation = " + ".join([f"{d}^{power}" for d in digits])
+                return f"{n} is an Armstrong number because {calculation} = {n}"
+            return f"{n} is {'even' if n % 2 == 0 else 'odd'}"
+    except:
+        # Fallback for connection errors
+        return f"Number {n}"
 
 @app.get("/api/classify-number")
-async def classify_number(number: str):
+async def classify_number(number: str = None):
     """
     Classify a number and return its properties.
     """
-    # Check if number parameter is missing
-    if not number:
-        raise HTTPException(
+    # Handle missing number parameter
+    if number is None:
+        return JSONResponse(
             status_code=400,
-            detail={"number": "", "error": True}
+            content={"number": "", "error": True}
         )
     
+    # Handle invalid number input
     try:
         num = int(number)
     except ValueError:
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail={"number": number, "error": True}
+            content={"number": number, "error": True}
         )
     
     response = NumberResponse(
