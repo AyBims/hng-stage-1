@@ -1,0 +1,21 @@
+
+steps: 
+- id: build-image
+  name: "gcr.io/cloud-builders/docker"
+  args: [
+    'build', '-t', 'eu.gcr.io/codematic-playground/number-classification-backend-dev:$SHORT_SHA', '-f', './Dockerfile', './'
+  ]
+- id: push-image
+  name: "gcr.io/cloud-builders/docker"
+  args: [
+    'push',
+    'eu.gcr.io/codematic-playground/number-classification-backend-dev:$SHORT_SHA'
+  ]
+- id: deploy-image
+  name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+  entrypoint: gcloud
+  args: [
+    'run', 'deploy',
+    'number-classification-backend-dev', '--image', 'eu.gcr.io/codematic-playground/number-classification-backend-dev:$SHORT_SHA',
+    '--region', 'europe-west1', '--allow-unauthenticated', '--cpu=2', '--memory=2Gi', '--cpu-boost', '--timeout=500s'
+  ]
