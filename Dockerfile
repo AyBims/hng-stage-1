@@ -13,11 +13,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Make port 8000 available to the world outside this container
-EXPOSE 8000
-
 # Define environment variable for Python to run in unbuffered mode
 ENV PYTHONUNBUFFERED=1
 
+# The port is now set by Cloud Run via the PORT environment variable
+# Default to 8080 for local development
+ENV PORT=8080
+
 # Run the application with Uvicorn when the container launches
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD uvicorn main:app --host 0.0.0.0 --port $PORT
