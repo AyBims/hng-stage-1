@@ -35,7 +35,7 @@ def is_prime(n: int) -> bool:
     """Check if a number is prime."""
     if n < 2:
         return False
-    for i in range(2, int(math.sqrt(n)) + 1):
+    for i in range(2, int(math.sqrt(abs(n))) + 1):
         if n % i == 0:
             return False
     return True
@@ -44,18 +44,18 @@ def is_perfect(n: int) -> bool:
     """Check if a number is perfect."""
     if n <= 1:
         return False
-    sum_divisors = sum(i for i in range(1, n) if n % i == 0)
-    return sum_divisors == n
+    sum_divisors = sum(i for i in range(1, abs(n)) if n % i == 0)
+    return sum_divisors == abs(n)
 
 def is_armstrong(n: int) -> bool:
     """Check if a number is an Armstrong number."""
-    num_str = str(n)
+    num_str = str(abs(n))
     power = len(num_str)
-    return sum(int(digit) ** power for digit in num_str) == n
+    return sum(int(digit) ** power for digit in num_str) == abs(n)
 
 def get_digit_sum(n: int) -> int:
     """Calculate the sum of digits."""
-    return sum(int(digit) for digit in str(n))
+    return sum(int(digit) for digit in str(abs(n)))
 
 def get_properties(n: int) -> List[str]:
     """Get the properties of a number (armstrong and odd/even)."""
@@ -98,10 +98,10 @@ def get_fun_fact(n: int) -> str:
     except (requests.RequestException, json.JSONDecodeError):
         # Fallback fun fact if API fails or returns invalid JSON
         if is_armstrong(n):
-            digits = list(str(n))
+            digits = list(str(abs(n)))
             power = len(digits)
             calculation = " + ".join([f"{d}^{power}" for d in digits])
-            return clean_fun_fact(f"{n} is an Armstrong number because {calculation} = {n}")
+            return clean_fun_fact(f"{n} is an Armstrong number because {calculation} = {abs(n)}")
         return f"{n} is {'even' if n % 2 == 0 else 'odd'}"
 
 @app.get("/api/classify-number")
@@ -116,7 +116,11 @@ async def classify_number(number: str = None):
         )
     
     try:
-        num = int(number)
+        # First try to convert to float to accept decimal numbers
+        float_num = float(number)
+        # Then convert to int for the calculations
+        num = int(float_num)
+        
         response = NumberResponse(
             number=num,
             is_prime=is_prime(num),
